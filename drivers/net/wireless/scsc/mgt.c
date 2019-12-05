@@ -867,8 +867,8 @@ void slsi_scan_cleanup(struct slsi_dev *sdev, struct net_device *dev)
 
 	SLSI_MUTEX_LOCK(ndev_vif->scan_mutex);
 	for (i = 0; i < SLSI_SCAN_MAX; i++) {
-		if (ndev_vif->scan[i].scan_req && !sdev->mlme_blocked &&
-		    SLSI_IS_VIF_INDEX_P2P_GROUP(sdev, ndev_vif))
+		if ((ndev_vif->scan[i].scan_req || ndev_vif->scan[i].acs_request) &&
+		    !sdev->mlme_blocked)
 			slsi_mlme_del_scan(sdev, dev, (ndev_vif->ifnum << 8 | i), false);
 		slsi_purge_scan_results(ndev_vif, i);
 		if (ndev_vif->scan[i].scan_req && i == SLSI_SCAN_HW_ID)
@@ -886,6 +886,8 @@ void slsi_scan_cleanup(struct slsi_dev *sdev, struct net_device *dev)
 #endif
 
 		ndev_vif->scan[i].scan_req = NULL;
+		kfree(ndev_vif->scan[i].acs_request);
+		ndev_vif->scan[i].acs_request = NULL;
 		ndev_vif->scan[i].sched_req = NULL;
 	}
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
@@ -1300,15 +1302,16 @@ static int slsi_mib_initial_get(struct slsi_dev *sdev)
 							       { SLSI_PSID_UNIFI_MAX_CLIENT, {0, 0} },
 #endif
 #ifdef CONFIG_SCSC_WLAN_ENABLE_MAC_RANDOMISATION
-							       { SLSI_PSID_UNIFI_MAC_ADDRESS_RANDOMISATION_ACTIVATED, {0, 0} }
+							       { SLSI_PSID_UNIFI_MAC_ADDRESS_RANDOMISATION_ACTIVATED, {0, 0} },
 #endif
+							       { SLSI_PSID_UNIFI_DEFAULT_COUNTRY_WITHOUT_CH12_CH13, {0, 0} }
 							      };/*Check the mibrsp.dataLength when a new mib is added*/
 
 	r = slsi_mib_encode_get_list(&mibreq, sizeof(get_values) / sizeof(struct slsi_mib_get_entry), get_values);
 	if (r != SLSI_MIB_STATUS_SUCCESS)
 		return -ENOMEM;
 
-	mibrsp.dataLength = 164;
+	mibrsp.dataLength = 174;
 	mibrsp.data = kmalloc(mibrsp.dataLength, GFP_KERNEL);
 	if (!mibrsp.data) {
 		kfree(mibreq.data);
@@ -1460,6 +1463,11 @@ static int slsi_mib_initial_get(struct slsi_dev *sdev)
 		else
 			SLSI_WARN(sdev, "Error reading Mac Randomization Support\n");
 #endif
+		if (values[++mib_index].type != SLSI_MIB_TYPE_NONE)  /* Disable ch12/ch13 */
+			sdev->device_config.disable_ch12_ch13 = values[mib_index].u.boolValue;
+		else
+			SLSI_WARN(sdev, "Error reading default country without ch12/13 mib\n");
+
 		kfree(values);
 	}
 	kfree(mibrsp.data);
@@ -4578,7 +4586,33 @@ bool slsi_if_valid_wifi_sharing_channel(struct slsi_dev *sdev, int freq)
 	return 0;
 }
 
-void slsi_select_wifi_sharing_ap_channel(struct wiphy *wiphy, struct net_device *dev,
+int slsi_check_if_non_indoor_channel(struct slsi_dev *sdev, int freq)
+{
+	struct ieee80211_channel  *channel = NULL;
+	u32 chan_flags = 0;
+
+	channel =  ieee80211_get_channel(sdev->wiphy, freq);
+	if (!channel) {
+		SLSI_ERR(sdev, "Invalid frequency %d used to start AP. Channel not found\n", freq);
+		return 0;
+	}
+
+	chan_flags = (IEEE80211_CHAN_INDOOR_ONLY |
+			      IEEE80211_CHAN_DISABLED |
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 10, 13)
+			      IEEE80211_CHAN_PASSIVE_SCAN
+#else
+			      IEEE80211_CHAN_NO_IR
+#endif
+			     );
+
+	if ((channel->flags) & chan_flags)
+		return 0;
+
+	return 1;
+}
+
+int slsi_select_wifi_sharing_ap_channel(struct wiphy *wiphy, struct net_device *dev,
 					 struct cfg80211_ap_settings *settings,
 					 struct slsi_dev *sdev, int *wifi_sharing_channel_switched)
 {
@@ -4602,8 +4636,9 @@ void slsi_select_wifi_sharing_ap_channel(struct wiphy *wiphy, struct net_device 
 		if ((((settings->chandef.chan->center_freq) / 1000) == 5) &&
 		    !(slsi_check_if_channel_restricted_already(sdev,
 		    ieee80211_frequency_to_channel(settings->chandef.chan->center_freq))) &&
-		    slsi_if_valid_wifi_sharing_channel(sdev, settings->chandef.chan->center_freq)) {
-			settings->chandef.chan = __ieee80211_get_channel(wiphy, settings->chandef.chan->center_freq);
+		    slsi_if_valid_wifi_sharing_channel(sdev, settings->chandef.chan->center_freq) &&
+		    slsi_check_if_non_indoor_channel(sdev, settings->chandef.chan->center_freq)) {
+			settings->chandef.chan = ieee80211_get_channel(wiphy, settings->chandef.chan->center_freq);
 			settings->chandef.center_freq1 = settings->chandef.chan->center_freq;
 		} else {
 			if ((settings->chandef.chan->center_freq) != (sta_frequency)) {
@@ -4618,6 +4653,8 @@ void slsi_select_wifi_sharing_ap_channel(struct wiphy *wiphy, struct net_device 
 	else { /* For 5GHz */
 		/* For single antenna */
 #ifdef CONFIG_SCSC_WLAN_SINGLE_ANTENNA
+		if (!slsi_check_if_non_indoor_channel(sdev, sta_frequency))
+			return 1; /*AP cannot start on indoor channel so we will reject request from the host*/
 		if ((settings->chandef.chan->center_freq) != (sta_frequency)) {
 			*wifi_sharing_channel_switched = 1;
 			settings->chandef.chan = __ieee80211_get_channel(wiphy, sta_frequency);
@@ -4629,7 +4666,8 @@ void slsi_select_wifi_sharing_ap_channel(struct wiphy *wiphy, struct net_device 
 		if (((settings->chandef.chan->center_freq) / 1000) == 5) {
 			if (!(slsi_check_if_channel_restricted_already(sdev,
 			      ieee80211_frequency_to_channel(sta_frequency))) &&
-			    slsi_if_valid_wifi_sharing_channel(sdev, sta_frequency)) {
+			    slsi_if_valid_wifi_sharing_channel(sdev, sta_frequency) &&
+			    slsi_check_if_non_indoor_channel(sdev, sta_frequency)) {
 				if ((settings->chandef.chan->center_freq) != (sta_frequency)) {
 					*wifi_sharing_channel_switched = 1;
 					settings->chandef.chan = __ieee80211_get_channel(wiphy, sta_frequency);
@@ -4644,6 +4682,7 @@ void slsi_select_wifi_sharing_ap_channel(struct wiphy *wiphy, struct net_device 
 	}
 
 	SLSI_DBG1(sdev, SLSI_CFG80211, "AP frequency chosen: %d\n", settings->chandef.chan->center_freq);
+	return 0;
 }
 
 int slsi_get_byte_position(int bit)

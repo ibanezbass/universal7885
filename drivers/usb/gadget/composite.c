@@ -414,13 +414,16 @@ static int config_buf(struct usb_configuration *config,
 	c->bConfigurationValue = config->bConfigurationValue;
 #endif
 	c->iConfiguration = config->iConfiguration;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	c->bmAttributes = USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER;
-#else
-	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
-#endif
-	c->bMaxPower = encode_bMaxPower(speed, config);
 
+	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
+	c->bMaxPower = encode_bMaxPower(speed, config);
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	if (config->cdev->gadget->is_selfpowered) {
+		pr_info("usb: %s self_powered\n", __func__);
+		c->bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
+		c->bMaxPower = 0;
+	}
+#endif
 	/* There may be e.g. OTG descriptors */
 	if (config->descriptors) {
 		status = usb_descriptor_fillbuf(next, len,
@@ -485,6 +488,10 @@ static int config_desc(struct usb_composite_dev *cdev, unsigned w_value)
 	struct list_head		*pos;
 	u8				type = w_value >> 8;
 	enum usb_device_speed		speed = USB_SPEED_UNKNOWN;
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	int power_role, pd_contract;
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 
 	if (gadget->speed == USB_SPEED_SUPER)
 		speed = gadget->speed;
@@ -533,8 +540,18 @@ check_config:
 				continue;
 		}
 
-		if (w_value == 0)
+		if (w_value == 0) {
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+			power_role = get_typec_status(o_notify, NOTIFY_EVENT_POWER_SOURCE);
+			pd_contract = get_typec_status(o_notify, NOTIFY_EVENT_PD_CONTRACT);
+			/* sink == 0, source == 1 */
+			if (!power_role && pd_contract)
+				usb_gadget_set_selfpowered(gadget);
+			else
+				usb_gadget_clear_selfpowered(gadget);
+#endif
 			return config_buf(c, speed, cdev->req->buf, type);
+		}
 		w_value--;
 	}
 	return -EINVAL;

@@ -19,8 +19,6 @@
 #define __LINUX_PROCA_PORTING_H
 
 #include <linux/version.h>
-#include <linux/memory.h>
-#include <linux/fs.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 
@@ -39,61 +37,8 @@ __vfs_getxattr(struct dentry *dentry, struct inode *inode, const char *name,
 		return -EOPNOTSUPP;
 }
 
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 21)
-/* d_backing_inode is absent on some Linux Kernel 3.x. but it back porting for
- * few Samsung kernels:
- * Exynos7570 (3.18.14): CL 13680422
- * Exynos7870 (3.18.14): CL 14632149
- * SDM450 (3.18.71): initially
- */
-#if !defined(CONFIG_SOC_EXYNOS7570) && !defined(CONFIG_ARCH_SDM450) && \
-	!defined(CONFIG_SOC_EXYNOS7870)
-#define d_backing_inode(dentry)	((dentry)->d_inode)
-#endif
-#define inode_lock(inode)	mutex_lock(&(inode)->i_mutex)
-#define inode_unlock(inode)	mutex_unlock(&(inode)->i_mutex)
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
-#define security_add_hooks(hooks, count, name)
-#else
-#define LINUX_LSM_SUPPORTED
-#include <linux/lsm_hooks.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 #define security_add_hooks(hooks, count, name) security_add_hooks(hooks, count)
-#endif
-#endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-#define VA_START		(UL(0xffffffffffffffff) - \
-	(UL(1) << VA_BITS) + 1)
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-
-static inline u64 get_kimage_vaddr(void)
-{
-	return PAGE_OFFSET;
-}
-
-static inline u64 get_kimage_voffset(void)
-{
-	return get_kimage_vaddr() - virt_to_phys((void *)get_kimage_vaddr());
-}
-
-#else
-
-static inline u64 get_kimage_vaddr(void)
-{
-	return kimage_vaddr;
-}
-
-static inline u64 get_kimage_voffset(void)
-{
-	return kimage_voffset;
-}
 #endif
 
 #endif /* __LINUX_PROCA_PORTING_H */

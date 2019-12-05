@@ -8,8 +8,6 @@
  * published by the Free Software Foundation.
  */
 
-#define pr_fmt(fmt) "[VIB] " fmt
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include "../staging/android/timed_output.h"
@@ -117,8 +115,6 @@ static void s2mu106_haptic_onoff(struct s2mu106_haptic_data *haptic, bool en)
 
 		switch (haptic->hap_mode) {
 		case S2MU106_HAPTIC_LRA:
-			pwm_config(haptic->pwm, haptic->pdata->duty,
-					haptic->pdata->period);
 			pwm_enable(haptic->pwm);
 			break;
 		case S2MU106_HAPTIC_ERM_GPIO:
@@ -181,7 +177,7 @@ static void haptic_enable(struct timed_output_dev *tout_dev, int value)
 	value = min_t(int, value, (int)pdata->max_timeout);
 	hap_data->timeout = value;
 
-	pr_info("%s : %u ms\n", __func__, value);
+	pr_info("[VIB] %s : %u ms\n", __func__, value);
 
 	if (value > 0) {
 		mutex_lock(&hap_data->mutex);
@@ -204,7 +200,7 @@ static void haptic_enable(struct timed_output_dev *tout_dev, int value)
 		setSensorCallback(false, 0);
 #endif
 		mutex_unlock(&hap_data->mutex);
-		pr_debug("%s : off\n", __func__);
+		pr_debug("[VIB] %s : off\n", __func__);
 	}
 
 }
@@ -213,7 +209,7 @@ static enum hrtimer_restart haptic_timer_func(struct hrtimer *timer)
 {
 	struct s2mu106_haptic_data *hap_data
 		= container_of(timer, struct s2mu106_haptic_data, timer);
-	pr_info("%s\n", __func__);
+	pr_info("[VIB] : %s\n", __func__);
 
 	hap_data->timeout = 0;
 	queue_kthread_work(&hap_data->kworker, &hap_data->kwork);
@@ -226,7 +222,7 @@ static void haptic_work(struct kthread_work *work)
 		= container_of(work, struct s2mu106_haptic_data, kwork);
 	
 	mutex_lock(&hap_data->mutex);
-	pr_info("%s : hap_data->running = %d\n", __func__, hap_data->running);
+	pr_info("[VIB] %s : hap_data->running = %d\n", __func__, hap_data->running);
 
 	if (!hap_data->running) {
 		mutex_unlock(&hap_data->mutex);
@@ -375,7 +371,7 @@ static int s2mu106_haptic_parse_dt(struct device *dev,
 	
 	ret = of_property_read_u32(np, "haptic,max_timeout", &temp);
 	if (IS_ERR_VALUE(ret)) {
-		pr_err("%s : error to get dt node max_timeout\n", __func__);
+		pr_err("[VIB] %s : error to get dt node max_timeout\n", __func__);
 	} else
 		pdata->max_timeout = (u16)temp;
 	
@@ -545,10 +541,10 @@ static int s2mu106_haptic_probe(struct platform_device *pdev)
 		haptic->pwm = pwm_request(haptic->pdata->pwm_id, "vibrator");
 		if (IS_ERR(haptic->pwm)) {
 			error = -EFAULT;
-			pr_err("Failed to request pwm, err num: %d\n", error);
+			pr_err("[VIB] Failed to request pwm, err num: %d\n", error);
 			goto err_pwm_request;
 		}
-		pr_err("request pwm, success: \n");
+		pr_err("[VIB] request pwm, success: \n");
 		pwm_config(haptic->pwm, haptic->pdata->duty, haptic->pdata->period);
 	}
 
@@ -565,7 +561,7 @@ static int s2mu106_haptic_probe(struct platform_device *pdev)
 	error = timed_output_dev_register(&haptic->tout_dev);
 	if (error < 0) {
 		error = -EFAULT;
-		pr_err("Failed to register timed_output : %d\n", error);
+		pr_err("[VIB] Failed to register timed_output : %d\n", error);
 		goto err_timed_output_register;
 	}
 	if(haptic->pdata->hap_mode == S2MU106_HAPTIC_LRA) {
@@ -609,7 +605,7 @@ static int s2mu106_haptic_suspend(struct device *dev)
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct s2mu106_haptic_data *haptic = platform_get_drvdata(pdev);
 
-	pr_info("%s\n", __func__);
+	pr_debug("[VIB] %s\n", __func__);
 	flush_kthread_worker(&haptic->kworker);
 	hrtimer_cancel(&haptic->timer);
 	s2mu106_haptic_onoff(haptic, false);
@@ -618,7 +614,6 @@ static int s2mu106_haptic_suspend(struct device *dev)
 
 static int s2mu106_haptic_resume(struct device *dev)
 {
-	pr_info("%s\n", __func__);
 	return 0;
 }
 

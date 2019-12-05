@@ -336,7 +336,7 @@ static int abox_start_ipc_transaction_atomic(struct device *dev,
 		break;
 	}
 
-	memcpy_toio(tx_sram_base, supplement, size);
+	memcpy(tx_sram_base, supplement, size);
 	writel(1, tx_ack_sram_base);
 	abox_gic_generate_interrupt(data->pdev_gic, hw_irq);
 
@@ -815,6 +815,7 @@ static int abox_uaif_trigger(struct snd_pcm_substream *substream,
 		int trigger, struct snd_soc_dai *dai)
 {
 	struct device *dev = dai->dev;
+	struct abox_data *data = platform_get_drvdata(to_platform_device(dev));
 	struct snd_soc_codec *codec = dai->codec;
 	enum abox_dai id = dai->id;
 
@@ -831,6 +832,14 @@ static int abox_uaif_trigger(struct snd_pcm_substream *substream,
 					ABOX_MIC_ENABLE_MASK,
 					1 << ABOX_MIC_ENABLE_L);
 		} else {
+			if (id == ABOX_UAIF0) {
+				int mixp_value;
+				mixp_value = readl(data->sfr_base +  ABOX_SPUS_CTRL2);
+				mixp_value |= 0x1;
+				writel(mixp_value, data->sfr_base + ABOX_SPUS_CTRL2);
+				dev_info(dev, "%s(%d), mixp=0x%x\n", __func__, trigger, mixp_value);
+			}
+
 			snd_soc_update_bits(codec, ABOX_UAIF_CTRL0(id),
 					ABOX_SPK_ENABLE_MASK,
 					1 << ABOX_SPK_ENABLE_L);
@@ -5101,7 +5110,7 @@ static int abox_download_firmware(struct platform_device *pdev)
 		return -EAGAIN;
 	}
 	memset_io(data->sram_base, 0, data->sram_size);
-	memcpy_toio(data->sram_base, data->firmware_sram->data,
+	memcpy(data->sram_base, data->firmware_sram->data,
 			data->firmware_sram->size);
 
 	if (!data->firmware_dram) {

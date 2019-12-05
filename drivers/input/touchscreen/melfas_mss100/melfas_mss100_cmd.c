@@ -1235,15 +1235,8 @@ static void run_trx_short_test(void *device_data)
 	}
 
 	sec->cmd_state = SEC_CMD_STATUS_OK;
-
-	if (info->open_short_result == 1) {
-		snprintf(result, sizeof(result), "RESULT=PASS");
-		sec_cmd_send_event_to_user(sec, test, result);
-	} else {
-		snprintf(result, sizeof(result), "RESULT=FAIL");
-		sec_cmd_send_event_to_user(sec, test, result);
-	}
-
+	snprintf(result, sizeof(result), "RESULT=PASS");
+	sec_cmd_send_event_to_user(sec, test, result);
 	sec_cmd_set_cmd_result(sec, info->print_buf, strlen(info->print_buf));
 }
 

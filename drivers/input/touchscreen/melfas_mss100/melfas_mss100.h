@@ -367,7 +367,6 @@ struct mms_ts_info {
 	unsigned int comm_err_count;
 
 	int open_short_type;
-	int open_short_result;
 	bool use_sponge;
 
 	u32 defect_probability;

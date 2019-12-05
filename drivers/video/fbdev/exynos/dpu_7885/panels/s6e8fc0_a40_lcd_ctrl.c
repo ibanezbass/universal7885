@@ -381,6 +381,21 @@ static int s6e8fc0_read_id(struct lcd_info *lcd)
 	return ret;
 }
 
+static int s6e8fc0_read_elvss(struct lcd_info *lcd)
+{
+	int ret = 0;
+	unsigned char buf[LDI_LEN_ELVSS] = {0, };
+
+	ret = s6e8fc0_read_info(lcd, LDI_REG_ELVSS, LDI_LEN_ELVSS, buf);
+	if (ret < 0)
+		dev_err(&lcd->ld->dev, "%s: fail\n", __func__);
+
+	SEQ_ELVSS_SET[LDI_GPARA_ELVSS_NORMAL + 1] = buf[LDI_GPARA_ELVSS_NORMAL];
+	SEQ_ELVSS_SET[LDI_GPARA_ELVSS_HBM + 1] = buf[LDI_GPARA_ELVSS_HBM];
+
+	return ret;
+}
+
 static int s6e8fc0_read_coordinate(struct lcd_info *lcd)
 {
 	int ret = 0;
@@ -549,6 +564,7 @@ static int s6e8fc0_read_init_info(struct lcd_info *lcd)
 
 	s6e8fc0_read_coordinate(lcd);
 	s6e8fc0_read_chip_id(lcd);
+	s6e8fc0_read_elvss(lcd);
 	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
 
 	return ret;
@@ -591,9 +607,6 @@ static int s6e8fc0_displayon(struct lcd_info *lcd)
 	int ret = 0;
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
-	/* 10. Wait 100ms */
-	msleep(100);
 
 	/* 12. Display On(29h) */
 	DSI_WRITE(SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
@@ -659,6 +672,9 @@ static int s6e8fc0_init(struct lcd_info *lcd)
 
 	/* 9. Brightness Setting */
 	dsim_panel_set_brightness(lcd, 1);
+
+	/* 10. Wait 100ms */
+	msleep(100);
 
 	return ret;
 }

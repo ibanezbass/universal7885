@@ -332,13 +332,13 @@ static void sx9360_get_data(struct sx9360_p *data)
 	{
 		sx9360_i2c_read(data, SX9360_STAT_REG, &convstat);
 		convstat &= 0x01;
-		pr_info("[SX9360]: %s retry : %d, CONVSTAT : %u\n", __func__, retry, convstat);
 
-		if(convstat == 0 || ++retry > 5)
+		if(++retry > 5 || convstat == 0)
 			break;
 
 		usleep_range(10000, 11000);
 	}
+	pr_info("[SX9360]: %s retry : %d, CONVSTAT : %u\n", __func__, retry, convstat);
 
 	/* diff read */
 	sx9360_i2c_read(data, SX9360_REGDIFFMSBPHM, &msByte);
@@ -402,7 +402,7 @@ static int sx9360_set_mode(struct sx9360_p *data, unsigned char mode)
 		msleep(20);
 
 		sx9360_set_offset_calibration(data);
-		msleep(400);
+		msleep(450);
 	}
 
 	pr_info("[SX9360]: %s - change the mode : %u\n", __func__, mode);
@@ -569,7 +569,7 @@ static ssize_t sx9360_sw_reset_show(struct device *dev,
 
 	pr_info("[SX9360]: %s\n", __func__);
 	sx9360_set_offset_calibration(data);
-	msleep(400);
+	msleep(450);
 	sx9360_get_data(data);
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", 0);
@@ -925,9 +925,14 @@ static ssize_t sx9360_onoff_store(struct device *dev,
 		return ret;
 	}
 
-	if (val == 0)
+	if (val == 0) {
 		data->skip_data = true;
-	else
+		if (atomic_read(&data->enable) == ON) {
+			data->state = IDLE;
+			input_report_rel(data->input, REL_MISC, 2);
+			input_sync(data->input);
+		}
+	} else
 		data->skip_data = false;
 
 	pr_info("[SX9360]: %s -%u\n", __func__, val);

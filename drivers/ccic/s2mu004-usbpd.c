@@ -1500,22 +1500,37 @@ static bool s2mu004_is_water_detected_2nd_seq(struct s2mu004_usbpd_data *pdic_da
 	if (cc_val[1] == USBPD_Rp)
 		cc_chk[1] = 1;
 
+#if defined(CONFIG_CCIC_EXTERNAL_CAPACITOR)
+	s2mu004_usbpd_write_reg(i2c, S2MU004_REG_PLUG_CTRL_SET_RP,
+								S2MU004_THRESHOLD_1587MV);
+#else
 	s2mu004_usbpd_write_reg(i2c, S2MU004_REG_PLUG_CTRL_SET_RD,
 							S2MU004_THRESHOLD_214MV);
+#endif
 	s2mu004_set_lpm_mode(pdic_data);
 	s2mu004_usbpd_update_bit(i2c, S2MU004_REG_PD_CTRL,
 						S2MU004_REG_LPM_EN, 0, 0);
+
+#if defined(CONFIG_CCIC_EXTERNAL_CAPACITOR)
+	msleep(520);
+#else
 	msleep(300);
+#endif
 
 	if (s2mu004_get_plug_monitor(pdic_data, cc_val) < 0) {
 		pr_err("%s Failed to get the plug monitor.\n", __func__);
 		return false;
 	}
 
-	/* Rd is detected due to the water CAPACITOR. */
+	/* Rp is detected due to the water CAPACITOR. */
+#if defined(CONFIG_CCIC_EXTERNAL_CAPACITOR)
+	if ((cc_chk[0] && cc_chk[1]) && ((cc_val[0] == USBPD_Rp) && (cc_val[1] == USBPD_Rp)))
+#else
 	if (((cc_chk[0] && !cc_chk[1]) && (cc_val[0] == USBPD_Rd)) ||
 		((cc_chk[1] && !cc_chk[0]) && (cc_val[1] == USBPD_Rd)) ||
-		((cc_chk[0] && cc_chk[1]) && ((cc_val[0] == USBPD_Rd) && (cc_val[1] == USBPD_Rd)))) {
+		((cc_chk[0] && cc_chk[1]) && ((cc_val[0] == USBPD_Rd) && (cc_val[1] == USBPD_Rd))))
+#endif
+	{
 			return true;
 	}
 

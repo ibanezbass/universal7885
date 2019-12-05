@@ -305,10 +305,6 @@ int sensor_module_3l6_probe(struct platform_device *pdev)
 	struct sensor_open_extended *ext;
 	struct exynos_platform_fimc_is_module *pdata;
 	struct device *dev;
-#ifdef USE_MS_PDAF
-	int ch, t;
-	bool use_pdaf = false;
-#endif
 
 	BUG_ON(!fimc_is_dev);
 
@@ -319,15 +315,6 @@ int sensor_module_3l6_probe(struct platform_device *pdev)
 	}
 
 	dev = &pdev->dev;
-
-#ifdef USE_MS_PDAF
-	if (of_property_read_bool(dev->of_node, "use_pdaf")) {
-		use_pdaf = true;
-	} else {
-		use_pdaf = false;
-	}
-	probe_info("%s use_pdaf(%d)\n", __func__, use_pdaf);
-#endif
 
 	fimc_is_module_parse_dt(dev, sensor_module_3l6_power_setpin);
 
@@ -372,28 +359,6 @@ int sensor_module_3l6_probe(struct platform_device *pdev)
 	module->cfgs = ARRAY_SIZE(config_module_3l6);
 	module->cfg = config_module_3l6;
 	module->ops = NULL;
-
-#ifdef USE_MS_PDAF
-	for (ch = 1; ch < CSI_VIRTUAL_CH_MAX; ch++) {
-		module->internal_vc[ch] = pdata->internal_vc[ch];
-		module->vc_buffer_offset[ch] = pdata->vc_buffer_offset[ch];
-	}
-	for (t = VC_BUF_DATA_TYPE_SENSOR_STAT1; t < VC_BUF_DATA_TYPE_MAX; t++) {
-		module->vc_max_size[t].stat_type = VC_STAT_TYPE_INVALID;
-		module->vc_max_size[t].sensor_mode = VC_SENSOR_MODE_INVALID;
-		module->vc_max_size[t].width = 0;
-		module->vc_max_size[t].height = 0;
-		module->vc_max_size[t].element_size = 0;
-		if (use_pdaf) {
-			switch (t) {
-			case VC_BUF_DATA_TYPE_SENSOR_STAT1:
-				module->vc_max_size[t].sensor_mode = VC_SENSOR_MODE_MSPD_NORMAL;
-				break;
-			}
-		}
-	}
-#endif
-
 	/* Sensor peri */
 	module->private_data = kzalloc(sizeof(struct fimc_is_device_sensor_peri), GFP_KERNEL);
 	if (!module->private_data) {

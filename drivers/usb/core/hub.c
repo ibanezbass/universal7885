@@ -1232,6 +1232,9 @@ static void hub_quiesce(struct usb_hub *hub, enum hub_quiescing_type type)
 	struct usb_device *hdev = hub->hdev;
 	int i;
 
+	cancel_delayed_work_sync(&hub->init_work);
+
+
 #if !defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
 	cancel_delayed_work_sync(&hub->init_work);
 #endif

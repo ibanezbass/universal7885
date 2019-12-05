@@ -45,7 +45,7 @@
 #ifdef CONFIG_USE_DIRECT_IS_CONTROL
 #include "fimc-is-interface-wrap.h"
 #endif
-#if defined(CONFIG_COMPANION_DIRECT_USE) || defined(USE_AP_PDAF) || defined(USE_SENSOR_WDR) || defined (USE_MS_PDAF)
+#if defined(CONFIG_COMPANION_DIRECT_USE) || defined(USE_AP_PDAF) || defined(USE_SENSOR_WDR)
 #include "fimc-is-interface-sensor.h"
 #include "fimc-is-device-sensor-peri.h"
 #endif
@@ -2299,7 +2299,7 @@ int fimc_is_group_buffer_queue(struct fimc_is_groupmgr *groupmgr,
 	struct fimc_is_device_ischain *device;
 	struct fimc_is_framemgr *framemgr;
 	struct fimc_is_frame *frame;
-#if defined(CONFIG_COMPANION_DIRECT_USE) || defined(USE_AP_PDAF) || defined(USE_SENSOR_WDR) || defined (USE_MS_PDAF)
+#if defined(CONFIG_COMPANION_DIRECT_USE) || defined(USE_AP_PDAF) || defined(USE_SENSOR_WDR)
 	struct fimc_is_module_enum *module = NULL;
 	struct fimc_is_device_sensor *sensor = NULL;
 	struct fimc_is_device_sensor_peri *sensor_peri = NULL;
@@ -2318,7 +2318,7 @@ int fimc_is_group_buffer_queue(struct fimc_is_groupmgr *groupmgr,
 	framemgr = &queue->framemgr;
 
 	BUG_ON(index >= framemgr->num_frames);
-#if defined(CONFIG_COMPANION_DIRECT_USE) || defined(USE_AP_PDAF) || defined(USE_SENSOR_WDR) || defined (USE_MS_PDAF)
+#if defined(CONFIG_COMPANION_DIRECT_USE) || defined(USE_AP_PDAF) || defined(USE_SENSOR_WDR)
 	sensor = device->sensor;
 	BUG_ON(!sensor);
 
@@ -2393,7 +2393,8 @@ int fimc_is_group_buffer_queue(struct fimc_is_groupmgr *groupmgr,
 
 #ifdef SENSOR_REQUEST_DELAY
 		if (test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state) &&
-			(frame->shot->uctl.opMode == CAMERA_OP_MODE_HAL3_GED)) {
+			(frame->shot->uctl.opMode == CAMERA_OP_MODE_HAL3_GED
+			|| frame->shot->uctl.opMode == CAMERA_OP_MODE_HAL3_SDK)) {
 			int req_cnt = 0;
 			struct fimc_is_frame *prev;
 			list_for_each_entry_reverse(prev, &framemgr->queued_list[FS_REQUEST], list) {
@@ -2475,15 +2476,6 @@ int fimc_is_group_buffer_queue(struct fimc_is_groupmgr *groupmgr,
 #else
 	frame->shot->uctl.isModeUd.paf_mode = CAMERA_PAF_OFF;
 #endif
-
-#if defined (USE_MS_PDAF)
-	if (sensor_peri->cis.use_pdaf) {
-		frame->shot->uctl.isModeUd.paf_mode  = CAMERA_PAF_ON;
-	} else {
-		frame->shot->uctl.isModeUd.paf_mode = CAMERA_PAF_OFF;
-	}
-#endif /* USE_MS_PDAF */
-
 #if defined(USE_SENSOR_WDR)
 	/* WDR */
 	if ((cis_data->is_data.wdr_enable == false) &&

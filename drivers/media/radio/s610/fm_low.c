@@ -109,7 +109,7 @@ void fm_initialize(struct s610_radio *radio)
 	APIEBUG(radio, "%s(): 0xFFF2C2:0x%x %d %d", __func__,
 		fmspeedy_get_reg(0xFFF2C2), radio->low->fm_config.rssi_adj_ini, radio->rssi_adjust);
 
-	fmspeedy_set_reg(0xFFF299, radio->agc_thresh);
+	fmspeedy_set_reg(0xFFF299, 0xFF64);
 
 #ifdef USE_IQ_IMBAL_SMOOTH
 	fmspeedy_set_reg(0xFFF2B6, 0x081C);

@@ -47,6 +47,7 @@ static enum power_supply_property s2mu106_otg_props[] = {
 
 static int s2mu106_get_charging_health(struct s2mu106_charger_data *charger);
 static void s2mu106_set_input_current_limit(struct s2mu106_charger_data *charger, int charging_current);
+static int s2mu106_get_input_current_limit(struct s2mu106_charger_data *charger);
 
 static void s2mu106_test_read(struct i2c_client *i2c)
 {

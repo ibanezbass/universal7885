@@ -1307,11 +1307,6 @@ static bool ts_read_coord(struct bt532_ts_info *info)
 				input_sync(info->input_dev);
 				input_report_key(info->input_dev, KEY_HOMEPAGE, 0);
 				input_sync(info->input_dev);
-				/* request from sensor team */
-				input_report_abs(info->input_dev_proximity, ABS_MT_CUSTOM2, 1);
-				input_sync(info->input_dev_proximity);
-				input_report_abs(info->input_dev_proximity, ABS_MT_CUSTOM2, 0);
-				input_sync(info->input_dev_proximity);
 
 				input_info(true, &client->dev, "AOT Doubletab\n");
 			} else {
@@ -9910,7 +9905,6 @@ static void zt_set_input_prop_proximity(struct bt532_ts_info *info, struct input
 	set_bit(INPUT_PROP_DIRECT, dev->propbit);
 
 	input_set_abs_params(dev, ABS_MT_CUSTOM, 0, 0xFFFFFFFF, 0, 0);
-	input_set_abs_params(dev, ABS_MT_CUSTOM2, 0, 0xFFFFFFFF, 0, 0);
 	input_set_drvdata(dev, info);
 }
 

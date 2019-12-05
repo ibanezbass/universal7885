@@ -190,6 +190,24 @@ policy_state usbpd_policy_src_ready(struct policy_data *policy)
 	int data_role = 0;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
+
+#if 0 //defined (CONFIG_TYPEC)
+	if (pd_data->pd_support == 0) {
+		pd_data->pd_support = 1;
+		if (pd_data->phy_ops.set_pwr_opmode)
+			pd_data->phy_ops.set_pwr_opmode(pd_data, TYPEC_PWR_MODE_PD);
+	}
+#else
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	if (pd_data->pd_support == 0) {
+		struct otg_notify *o_notify = get_otg_notify();
+
+		if (o_notify)
+				send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 1);
+	}
+#endif
+#endif
+
 	CHECK_MSG(pd_data, MSG_GET_SRC_CAP, PE_SRC_Give_Source_Cap);
 	CHECK_MSG(pd_data, MSG_REQUEST, PE_SRC_Negotiate_Capability);
 	CHECK_MSG(pd_data, MSG_PR_SWAP, PE_PRS_SRC_SNK_Evaluate_Swap);
@@ -538,6 +556,23 @@ policy_state usbpd_policy_snk_ready(struct policy_data *policy)
 	int data_role = 0;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
+
+#if 0//	defined (CONFIG_TYPEC)
+	if (pd_data->pd_support == 0) {
+		pd_data->pd_support = 1;
+		if (pd_data->phy_ops.set_pwr_opmode)
+			pd_data->phy_ops.set_pwr_opmode(pd_data, TYPEC_PWR_MODE_PD);
+	}
+#else
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	if (pd_data->pd_support == 0) {
+		struct otg_notify *o_notify = get_otg_notify();
+
+		if (o_notify)
+				send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 1);
+	}
+#endif
+#endif
 
 	usbpd_manager_plug_attach(pd_data->dev, ATTACHED_DEV_TYPE3_CHARGER_MUIC);
 

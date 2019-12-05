@@ -1269,34 +1269,6 @@ int get_sensor_frame_timing(struct fimc_is_sensor_interface *itf,
 	return ret;
 }
 
-#ifdef USE_MS_PDAF_INTERFACE
-int get_sensor_cur_size(struct fimc_is_sensor_interface *itf,
-			u32 *cur_pos_x,
-			u32 *cur_pos_y,
-			u32 *cur_width,
-			u32 *cur_height)
-{
-	int ret = 0;
-	struct fimc_is_device_sensor_peri *sensor_peri = NULL;
-
-	BUG_ON(!itf);
-	BUG_ON(!cur_width);
-	BUG_ON(!cur_height);
-
-	sensor_peri = container_of(itf, struct fimc_is_device_sensor_peri, sensor_interface);
-	BUG_ON(!sensor_peri);
-	BUG_ON(!sensor_peri->cis.cis_data);
-
-	dbg_sensor(2, "[%s]MS_PDAF cur_x [%d] cur_y [%d]\n", __func__, sensor_peri->cis.cis_data->cur_pos_x , sensor_peri->cis.cis_data->cur_pos_y);
-
-	*cur_pos_x = sensor_peri->cis.cis_data->cur_pos_x;
-	*cur_pos_y = sensor_peri->cis.cis_data->cur_pos_y;
-	*cur_width = sensor_peri->cis.cis_data->cur_width;
-	*cur_height = sensor_peri->cis.cis_data->cur_height;
-
-	return ret;
-}
-#else /* USE_MS_PDAF_INTERFACE */
 int get_sensor_cur_size(struct fimc_is_sensor_interface *itf,
 			u32 *cur_width,
 			u32 *cur_height)
@@ -1317,7 +1289,6 @@ int get_sensor_cur_size(struct fimc_is_sensor_interface *itf,
 
 	return ret;
 }
-#endif /* USE_MS_PDAF_INTERFACE */
 
 int get_sensor_max_fps(struct fimc_is_sensor_interface *itf,
 			u32 *max_fps)

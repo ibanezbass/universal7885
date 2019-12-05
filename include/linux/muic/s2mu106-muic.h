@@ -900,6 +900,12 @@ typedef enum {
 	S2MU106_IRQ_SKIP,
 } t_irq_status;
 
+typedef enum {
+	S2MU106_KILLER_NONE = 0,
+	S2MU106_KILLER_WAIT_STATUS,
+	S2MU106_KILLER_DETECTED,
+} t_killer_status;
+
 /* muic chip specific internal data structure
  * that setted at muic-xxxx.c file
  */
@@ -995,6 +1001,8 @@ struct s2mu106_muic_data {
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 	bool is_hiccup_mode;
 #endif
+	t_killer_status killer_status;
+
 	struct mutex water_det_mutex;
 	struct mutex water_dry_mutex;
 

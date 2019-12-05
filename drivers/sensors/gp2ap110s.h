@@ -57,7 +57,6 @@ struct gp2ap_data
 	int			tune_adc_count;
 	int			zero_detect;
 	int			pre_test;
-	bool			handle_high_offset;
 	enum of_gpio_flags	irq_gpio_flags;
 };
 

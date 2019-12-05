@@ -1268,9 +1268,6 @@ static void s2mu005_muic_handle_attach(struct s2mu005_muic_data *muic_data,
 	case ATTACHED_DEV_JIG_UART_ON_MUIC:
 	case ATTACHED_DEV_VZW_INCOMPATIBLE_MUIC:
 	case ATTACHED_DEV_FACTORY_UART_MUIC:
-#if defined(CONFIG_TYPEB_WATERPROOF_MODEL)
-	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
-#endif
 #if IS_ENABLED(CONFIG_MUIC_S2MU005_SUPPORT_HMT)
 	case ATTACHED_DEV_HMT_MUIC:
 #endif
@@ -1333,9 +1330,6 @@ static void s2mu005_muic_handle_attach(struct s2mu005_muic_data *muic_data,
 	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
 	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
 	case ATTACHED_DEV_UNKNOWN_MUIC:
-#if defined(CONFIG_TYPEB_WATERPROOF_MODEL)
-	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
-#endif
 		com_to_open(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
@@ -1695,13 +1689,8 @@ static void s2mu005_muic_detect_dev(struct s2mu005_muic_data *muic_data)
 
 	if ((new_dev == ATTACHED_DEV_UNKNOWN_MUIC) && (adc != ADC_OPEN)) {
 		if (vbvolt) {
-#if defined(CONFIG_TYPEB_WATERPROOF_MODEL)
-			new_dev = ATTACHED_DEV_UNDEFINED_RANGE_MUIC;
-			pr_info("%s: UNDEFINED RANGE DETECTED\n", __func__);
-#else
 			new_dev = ATTACHED_DEV_UNDEFINED_CHARGING_MUIC;
-			pr_info("%s: UNDEFINED VB DETECTED\n", __func__);
-#endif
+			pr_info("UNDEFINED VB DETECTED\n");
 		}
 	}
 

@@ -1169,23 +1169,6 @@ static int dadc_ev(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static void remove_tdma_noise(struct snd_soc_codec *codec)
-{
-	unsigned int mic_on;
-
-	dev_dbg(codec->dev, "%s: adc mute for remove tdma noise after jack out.\n",
-			__func__);
-
-	mic_on = snd_soc_read(codec, COD3035X_6C_MIC_ON);
-	if (!(mic_on & EN_MIC3_MASK)) {
-		dev_dbg(codec->dev, "%s: MIC3 is not enabled, returning.\n", __func__);
-	} else {
-		dev_dbg(codec->dev, "%s: MIC3 is active, Boost power down.\n", __func__);
-		/* MIC3 OFF */
-		snd_soc_update_bits(codec, COD3035X_12_PD_AD2, PDB_MIC_BST3_MASK, 0);
-	}
-}
-
 int cod3035x_mic_bias_ev(struct snd_soc_codec *codec, int mic_bias, int event)
 {
 	int is_other_mic_on, mask;
@@ -5029,9 +5012,6 @@ static int cod3035x_notifier_handler(struct notifier_block *nb,
 		if ((cod3035x->model_feature_flag & MODEL_FLAG_5PIN_BTN_DELAY) &&
 				cod3035x->btn_delay_masking)
 			cod3035x->btn_delay_masking = false;
-
-		if (cod3035x->model_feature_flag & MODEL_FLAG_JACKOUT_TDMA_NOISE)
-			remove_tdma_noise(codec);
 
 		if (cod3035x->is_suspend)
 			regcache_cache_only(cod3035x->regmap, false);

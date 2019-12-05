@@ -428,17 +428,11 @@ static void stk3x3x_prox_cal(struct stk3x3x_data *ps_data)
 
 		// read adc value
 		read_value = stk3x3x_get_ps_reading(ps_data);
-		SENSOR_INFO("read_value = %d, (0x%x)\n", read_value, sunlight_protection_mode);
 		if (((sunlight_protection_mode >> 5) & 0x1) && read_value == 0) {
-			if (ps_data->cal_status == STK3X3X_FIRST_CAL) {
-				if (ps_data->sunlight_thd_h != -1 && ps_data->sunlight_thd_l != -1) {
-					stk3x3x_set_ps_thd(ps_data, ps_data->sunlight_thd_h, ps_data->sunlight_thd_l);
-					SENSOR_INFO("SUNLIGHT PROTECTION, set as sunlight thd h(%u) l(%u)\n",
-						ps_data->sunlight_thd_h, ps_data->sunlight_thd_l);
-				} else
-					SENSOR_INFO("SUNLIGHT PROTECTION, set as default thd h(%u) l(%u)\n",
-						ps_data->prox_thd_h, ps_data->prox_thd_l);
-			} else
+			if (ps_data->cal_status == STK3X3X_FIRST_CAL)
+				SENSOR_ERR("SUNLIGHT PROTECTION, set as default thd h(%u) l(%u)\n",
+					ps_data->prox_thd_h, ps_data->prox_thd_l);
+			else
 				SENSOR_ERR("SUNLIGHT PROTECTION, calibration is failed, (0x%x)\n"
 					, sunlight_protection_mode);
 			goto exit;
@@ -446,17 +440,14 @@ static void stk3x3x_prox_cal(struct stk3x3x_data *ps_data)
 			&& (read_value > ps_data->prox_thd_l - 10)) {
 			SENSOR_ERR("cal failed ps_data = %d", read_value);
 			goto exit;
-		} else if (!ps_data->first_limit_skip && (ps_data->cal_status == STK3X3X_FIRST_CAL) 
-				&& read_value > ps_data->first_cal_adc_limit) {
-			if (ps_data->first_cal_thd_h != -1 && ps_data->first_cal_thd_l != -1) {
-				stk3x3x_set_ps_thd(ps_data, ps_data->first_cal_thd_h, ps_data->first_cal_thd_l);
-				SENSOR_INFO("first cal adc is too big. set as thd h(%u) l(%u)\n",
-					ps_data->first_cal_thd_h, ps_data->first_cal_thd_l);
-			} else
-				SENSOR_INFO("first cal adc is too big. set as default thd h(%u) l(%u)\n",
-					ps_data->prox_thd_h, ps_data->prox_thd_l);
+		} else if ((ps_data->cal_status == STK3X3X_FIRST_CAL)
+			&& (read_value > FIRST_CAL_ADC_LIMIT)) {
+			SENSOR_ERR("first cal adc is too big. set as default thd h(%u) l(%u)\n",
+				ps_data->prox_thd_h, ps_data->prox_thd_l);
 			goto exit;
 		} else if (read_value >= PDATA_MIN && read_value <= PDATA_MAX) {
+			SENSOR_INFO("read_value = %d, (0x%x)\n", read_value,
+				sunlight_protection_mode);
 			sum += read_value;
 			sum_cnt++;
 		} else {
@@ -1291,54 +1282,6 @@ static int stk3x3x_parse_dt(struct device *dev, struct stk3x3x_data *drv_data)
 		SENSOR_INFO("prox_thd_l=%d\n", drv_data->prox_thd_l);
 	}
 
-	ret = of_property_read_u32(np, "stk,sunlight_thd_h", &temp_val);
-	if (ret < 0) {
-		drv_data->sunlight_thd_h = -1;
-		SENSOR_INFO("stk,sunlight_thd_h read failed, ret=%d\n", ret);
-	} else {
-		drv_data->sunlight_thd_h = (u16) temp_val;
-		SENSOR_INFO("sunlight_thd_h=%d\n", drv_data->sunlight_thd_h);
-	}
-
-	ret = of_property_read_u32(np, "stk,sunlight_thd_l", &temp_val);
-	if (ret < 0) {
-		drv_data->sunlight_thd_l = -1;
-		SENSOR_INFO("stk,sunlight_thd_l read failed, ret=%d\n", ret);
-	} else {
-		drv_data->sunlight_thd_l = (u16) temp_val;
-		SENSOR_INFO("sunlight_thd_l=%d\n", drv_data->sunlight_thd_l);
-	}
-
-	ret = of_property_read_u32(np, "stk,first_cal_adc_limit", &temp_val);
-	if (ret < 0) {
-		drv_data->first_cal_adc_limit = FIRST_CAL_ADC_LIMIT;
-		SENSOR_INFO("stk,first_cal_adc_limit read failed, ret=%d\n", ret);
-	} else {
-		drv_data->first_cal_adc_limit = (u16) temp_val;
-		SENSOR_INFO("first_cal_adc_limit=%d\n", drv_data->first_cal_adc_limit);
-	}
-
-	ret = of_property_read_u32(np, "stk,first_cal_thd_h", &temp_val);
-	if (ret < 0) {
-		drv_data->first_cal_thd_h = -1;
-		SENSOR_INFO("stk,first_cal_thd_h read failed, ret=%d\n", ret);
-	} else {
-		drv_data->first_cal_thd_h = (u16) temp_val;
-		SENSOR_INFO("first_cal_thd_h=%d\n", drv_data->first_cal_thd_h);
-	}
-
-	ret = of_property_read_u32(np, "stk,first_cal_thd_l", &temp_val);
-	if (ret < 0) {
-		drv_data->first_cal_thd_l = -1;
-		SENSOR_INFO("stk,first_cal_thd_l read failed, ret=%d\n", ret);
-	} else {
-		drv_data->first_cal_thd_l = (u16) temp_val;
-		SENSOR_INFO("first_cal_thd_l=%d\n", drv_data->first_cal_thd_l);
-	}
-
-	if (drv_data->prox_thd_h == 0 && drv_data->prox_thd_l == 0)
-        	drv_data->first_limit_skip = true;
-
 	ret = of_property_read_u32(np, "stk,intel_prst", &temp_val);
 	if (ret < 0) {
 		drv_data->intel_prst = 0x01;
@@ -1447,7 +1390,6 @@ int stk3x3x_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	wake_lock_init(&drv_data->prox_wakelock, WAKE_LOCK_SUSPEND, "prox_wakelock");
 	device_init_wakeup(&client->dev, true);
 
-	drv_data->first_limit_skip = false;
 	ret = stk3x3x_parse_dt(&client->dev, drv_data);
 	if (ret) {
 		SENSOR_ERR("stk3x3x_parse_dt failed, ret=%d\n", ret);
