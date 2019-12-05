@@ -598,9 +598,6 @@ static int s6e8fc0_displayon(struct lcd_info *lcd)
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
-	/* 10. Wait 100ms */
-	msleep(100);
-
 	/* 12. Display On(29h) */
 	DSI_WRITE(SEQ_DISPLAY_ON, ARRAY_SIZE(SEQ_DISPLAY_ON));
 
@@ -653,6 +650,9 @@ static int s6e8fc0_init(struct lcd_info *lcd)
 	DSI_WRITE(SEQ_TEST_KEY_ON_F0, ARRAY_SIZE(SEQ_TEST_KEY_ON_F0));
 	DSI_WRITE(SEQ_TE_ON, ARRAY_SIZE(SEQ_TE_ON));
 	DSI_WRITE(SEQ_TEST_KEY_OFF_F0, ARRAY_SIZE(SEQ_TEST_KEY_OFF_F0));
+
+	/* 10. Wait 100ms */
+	msleep(100);
 
 	return ret;
 }

@@ -448,6 +448,9 @@ struct usbpd_data {
 	struct work_struct	worker;
 	struct completion	msg_arrived;
 	unsigned                wait_for_msg_arrived;
+	
+	struct mutex		accept_mutex;
+	int					pd_support;
 };
 
 static inline struct usbpd_data *protocol_rx_to_usbpd(struct protocol_data *rx)

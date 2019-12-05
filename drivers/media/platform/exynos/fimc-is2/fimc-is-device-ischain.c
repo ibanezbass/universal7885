@@ -1473,6 +1473,8 @@ int fimc_is_itf_set_fwboot(struct fimc_is_device_ischain *device, u32 val)
 
 static void fimc_is_itf_param_init(struct is_region *region)
 {
+	memset(&region->parameter, 0x0, sizeof(struct is_param_region));
+
 	memcpy(&region->parameter.sensor, &init_sensor_param,
 		sizeof(struct sensor_param));
 	memcpy(&region->parameter.taa, &init_taa_param,
@@ -1493,6 +1495,10 @@ static void fimc_is_itf_param_init(struct is_region *region)
 #ifdef SOC_SCP
 	memcpy(&region->parameter.scalerp, &init_scp_param,
 		sizeof(struct scp_param));
+#endif
+#ifdef SOC_MCS
+	memcpy(&region->parameter.mcs, &init_mcs_param,
+		sizeof(struct mcs_param));
 #endif
 	memcpy(&region->parameter.vra, &init_vra_param,
 		sizeof(struct vra_param));
@@ -3338,8 +3344,6 @@ static int fimc_is_ischain_open(struct fimc_is_device_ischain *device)
 	device->kvaddr_shared	= device->is_region->shared[0];
 	device->dvaddr_shared	= minfo->dvaddr +
 				(u32)((ulong)&device->is_region->shared[0] - minfo->kvaddr);
-
-	memset(&device->is_region->parameter, 0x0, sizeof(struct is_param_region));
 
 #ifdef ENABLE_HYBRID_FD
 	spin_lock_init(&device->is_region->fdae_info.slock);
@@ -6273,7 +6277,8 @@ p_err:
 		trans_frame(framemgr, frame, FS_PROCESS);
 #ifdef SENSOR_REQUEST_DELAY
 		if (test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state) &&
-			(frame->shot->uctl.opMode == CAMERA_OP_MODE_HAL3_GED)) {
+			(frame->shot->uctl.opMode == CAMERA_OP_MODE_HAL3_GED
+			|| frame->shot->uctl.opMode == CAMERA_OP_MODE_HAL3_SDK)) {
 			if (framemgr->queued_count[FS_REQUEST] < SENSOR_REQUEST_DELAY)
 				mgrwarn(" late sensor control shot", device, group, frame);
 		}

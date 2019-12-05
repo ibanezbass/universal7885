@@ -305,14 +305,8 @@ typedef struct stk3x3x_data
 	struct wake_lock        prox_wakelock;
 
     bool                        enable;
-    bool                    first_limit_skip;
     uint16_t                 prox_thd_h;
     uint16_t                 prox_thd_l;
-    uint16_t                 sunlight_thd_h;
-    uint16_t                 sunlight_thd_l;
-    uint16_t                 first_cal_adc_limit;
-    uint16_t                 first_cal_thd_h;
-    uint16_t                 first_cal_thd_l;
     uint16_t                 adc;
     int                     avg[3];
     struct hrtimer          prox_timer;

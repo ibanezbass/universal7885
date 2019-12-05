@@ -2613,7 +2613,7 @@ int fimc_is_sec_run_fw_sel(struct device *dev, int position)
 	if (specific->rom_share[position].check_rom_share == true)
 		rom_position = specific->rom_share[position].share_position;
 
-	if (default_finfo->is_caldata_read == false || force_caldata_dump) {
+	if ((default_finfo->is_caldata_read == false && position != SENSOR_POSITION_FRONT) || force_caldata_dump) {
 		ret = fimc_is_sec_run_fw_sel_from_rom(dev, SENSOR_POSITION_REAR, true);
 		if (ret < 0) {
 			err("failed to select firmware (%d)", ret);
@@ -2701,8 +2701,13 @@ int fimc_is_sec_write_phone_firmware(int id)
 		goto read_phone_fw_exit;
 	}
 
-	strncpy(phone_fw_version, temp_buf + nread - 11, FIMC_IS_HEADER_VER_SIZE);
-	strncpy(sysfs_pinfo[id].header_ver, temp_buf + nread - 11, FIMC_IS_HEADER_VER_SIZE);
+#ifdef USE_BINARY_PADDING_DATA_ADDED
+	strncpy(phone_fw_version, temp_buf + nread - (FIMC_IS_HEADER_VER_SIZE + FIMC_IS_SIGNATURE_SIZE), FIMC_IS_HEADER_VER_SIZE);
+	strncpy(sysfs_pinfo[id].header_ver, temp_buf + nread - (FIMC_IS_HEADER_VER_SIZE + FIMC_IS_SIGNATURE_SIZE), FIMC_IS_HEADER_VER_SIZE);
+#else
+	strncpy(phone_fw_version, temp_buf + nread - FIMC_IS_HEADER_VER_SIZE, FIMC_IS_HEADER_VER_SIZE);
+	strncpy(sysfs_pinfo[id].header_ver, temp_buf + nread - FIMC_IS_HEADER_VER_SIZE, FIMC_IS_HEADER_VER_SIZE);
+#endif
 	info("Camera[%d]: phone fw version: %s\n", id, phone_fw_version);
 
 read_phone_fw_exit:

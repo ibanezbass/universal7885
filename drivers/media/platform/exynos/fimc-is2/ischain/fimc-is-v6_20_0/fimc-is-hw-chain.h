@@ -39,7 +39,7 @@ enum sysreg_is_reg_field {
 #define IORESOURCE_VRA_CH1	6
 
 //#define FIMC_IS_RESERVE_LIB_SIZE	(0)		/* Not Used */
-#define FIMC_IS_RESERVE_LIB_SIZE       (0x00600000)    /* 6MB */
+#define FIMC_IS_RESERVE_LIB_SIZE        (0x00100000)    /* 1MB RTA HEAP */
 #define FIMC_IS_TAAISP_SIZE		(0x00500000)	/* 5MB */
 #define FIMC_IS_VRA_SIZE		(0x00800000)	/* 8MB */
 

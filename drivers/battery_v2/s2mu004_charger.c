@@ -666,9 +666,9 @@ static bool s2mu004_chg_init(struct s2mu004_charger_data *charger)
 	s2mu004_update_reg(charger->i2c, S2MU004_REG_SELFDIS_CFG3,
 			SELF_DISCHG_MODE_MASK, SELF_DISCHG_MODE_MASK);
 
-	/* Set Top-Off timer to 90 minutes */
+	/* Set Top-Off timer to 30 minutes */
 	s2mu004_update_reg(charger->i2c, S2MU004_CHG_CTRL17,
-			S2MU004_TOPOFF_TIMER_90m << TOP_OFF_TIME_SHIFT,
+			S2MU004_TOPOFF_TIMER_30m << TOP_OFF_TIME_SHIFT,
 			TOP_OFF_TIME_MASK);
 
 	s2mu004_read_reg(charger->i2c, S2MU004_CHG_CTRL17, &temp);

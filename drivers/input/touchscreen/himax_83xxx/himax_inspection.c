@@ -614,7 +614,7 @@ static uint32_t himax_wait_sorting_mode(uint8_t checktype)
 		I("%s: 0x10007F40,tmp_data[0]=%x,tmp_data[1]=%x,tmp_data[2]=%x,tmp_data[3]=%x \n", __func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 		I("Now retry %d times!\n", count++);
 		msleep(50);
-	} while (count < 200);
+	} while (count < 50);
 
 	return 1;
 }
@@ -1946,51 +1946,6 @@ static void himax_osr_ctrl(bool enable)
 	} while (--retry > 0);
 }
 
-static int hx_turn_on_mp_func(int on)
-{
-	int rslt = 0;
-	int retry = 3;
-	uint8_t tmp_addr[4] = {0};
-	uint8_t tmp_data[4] = {0};
-	uint8_t tmp_read[4] = {0};
-	/* char *tmp_chipname = private_ts->chip_name; */
-	tmp_addr[3] = 0x10;tmp_addr[2] = 0x00;tmp_addr[1] = 0x73;tmp_addr[0] = 0xEC;
-	if (on) {
-		I("%s : Turn on!\n", __func__);
-		if (strcmp(HX_83102D_SERIES_PWON,private_ts->chip_name) == 0) {
-			I("%s: need to enter Mp mode!\n",__func__);
-			tmp_data[3] = 0x00;tmp_data[2] = 0x10;tmp_data[1] = 0x73;tmp_data[0] = 0x80;
-			do {
-				g_core_fp.fp_register_write(tmp_addr, 4, tmp_data, 0);
-				msleep(10);
-				g_core_fp.fp_register_read(tmp_addr, 4, tmp_read, false);
-				input_info(true, &private_ts->client->dev, "%s %s: now read[2]=0x%02X, read[1]=0x%02X, read[0]=0x%02X!\n",
-					HIMAX_LOG_TAG ,__func__, tmp_read[2], tmp_read[1], tmp_read[0]);
-				retry--;
-			} while ((retry > 0) && (tmp_read[2] != tmp_data[2] && tmp_read[1] != tmp_data[1] && tmp_read[0] != tmp_data[0]));
-		} else {
-			input_info(true, &private_ts->client->dev, "%s %s:Nothing to be done!\n", HIMAX_LOG_TAG ,__func__);
-		}
-	} else {
-		I("%s : Turn off!\n", __func__);
-		if (strcmp(HX_83102D_SERIES_PWON,private_ts->chip_name) == 0) {
-			I("%s: need to enter Mp mode!\n",__func__);
-			tmp_data[3] = 0x00;tmp_data[2] = 0x00;tmp_data[1] = 0x00;tmp_data[0] = 0x00;
-			do {
-				g_core_fp.fp_register_write(tmp_addr, 4, tmp_data, 0);
-				msleep(10);
-				g_core_fp.fp_register_read(tmp_addr, 4, tmp_read, false);
-				input_info(true, &private_ts->client->dev, "%s %s: now read[2]=0x%02X, read[1]=0x%02X, read[0]=0x%02X!\n",
-					HIMAX_LOG_TAG ,__func__, tmp_read[2], tmp_read[1], tmp_read[0]);
-				retry--;
-			} while( (retry > 0) && (tmp_read[2] != tmp_data[2] && tmp_read[1] != tmp_data[1] && tmp_read[0] != tmp_data[0]));
-		} else {
-			input_info(true, &private_ts->client->dev, "%s %s:Nothing to be done!\n", HIMAX_LOG_TAG ,__func__);
-		}
-	}
-	return rslt;
-}
-
 static int hx_get_one_raw(int32_t * RAW, uint8_t checktype, uint32_t datalen)
 {
 	int ret = 0;
@@ -2003,7 +1958,6 @@ static int hx_get_one_raw(int32_t * RAW, uint8_t checktype, uint32_t datalen)
 		input_info(true, &private_ts->client->dev, "%s Need Change Mode ,target=%s\n",
 			HIMAX_LOG_TAG, g_himax_inspection_mode[checktype]);
 		g_core_fp.fp_sense_off(true);
-		hx_turn_on_mp_func(1);
 #ifndef HX_ZERO_FLASH
 		if (g_core_fp.fp_reload_disable != NULL)
 			g_core_fp.fp_reload_disable(1);
@@ -2084,7 +2038,6 @@ static int hx_get_one_raw(int32_t * RAW, uint8_t checktype, uint32_t datalen)
 
 	himax_switch_data_type(HIMAX_INSPECTION_BACK_NORMAL);
 	himax_switch_mode_inspection(HIMAX_INSPECTION_RAWDATA);
-	hx_turn_on_mp_func(0);
 	/* change to auto status */
 	g_core_fp.fp_idle_mode(0);
 	if (checktype == HIMAX_INSPECTION_NOISE)
@@ -2593,22 +2546,13 @@ static void get_checksum_data(void *dev_data)
 {
 	char buf[LEN_RSLT] = { 0 };
 	u32 chksum = 0;
-	u32 chksum_size = 0;
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)dev_data;
 	struct himax_ts_data *data =
 		container_of(sec, struct himax_ts_data, sec);
 
 	sec_cmd_set_default_result(sec);
-
-	if (strcmp(HX_83102D_SERIES_PWON,private_ts->chip_name) == 0) {
-		chksum_size = FW_SIZE_128k;
-	} else {
-		chksum_size = FW_SIZE_64k;
-	}
-	I("Now Size = %d\n", chksum_size);
-
 	chksum =
-		g_core_fp.fp_check_CRC(pfw_op->addr_program_reload_from, chksum_size);
+		g_core_fp.fp_check_CRC(pfw_op->addr_program_reload_from, HX64K);
 	/*
 	chksum == 0 => checksum pass
 	chksum != 0 => checksum fail
@@ -2981,8 +2925,8 @@ static void get_rawcap(void *dev_data)
 		goto END_OUPUT;
 	}
 
-	limit_val[0] = -99999;	/* max */
-	limit_val[1] = 99999;	/* min */
+	limit_val[0] = -9999;	/* max */
+	limit_val[1] = 9999;	/* min */
 	hx_findout_limit(RAW, limit_val, sz_mutual);
 
 	memcpy(&g_sec_raw_buff->_rawdata[0], &RAW[0],

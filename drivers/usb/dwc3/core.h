@@ -973,7 +973,7 @@ struct dwc3 {
 	unsigned		start_config_issued:1;
 
 	struct work_struct      set_vbus_current_work;
-	int			vbus_curernt; /* 100mA,  500mA,  900mA */
+	int			vbus_current; /* 100mA,  500mA,  900mA */
 };
 
 /* -------------------------------------------------------------------------- */

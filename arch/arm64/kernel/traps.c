@@ -417,8 +417,7 @@ void die(const char *str, struct pt_regs *regs, int err)
 	oops_exit();
 
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-	if (!user_mode(regs))
-		sec_debug_set_extra_info_backtrace(regs);
+	sec_debug_set_extra_info_backtrace(regs);
 #endif
 
 #ifdef CONFIG_SEC_DEBUG

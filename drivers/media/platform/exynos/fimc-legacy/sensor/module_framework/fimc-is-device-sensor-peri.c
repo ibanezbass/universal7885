@@ -1353,11 +1353,10 @@ int fimc_is_sensor_peri_pre_flash_fire(struct v4l2_subdev *subdev, void *arg)
 	flash = sensor_peri->flash;
 	BUG_ON(!flash);
 
-	flash_uctl = &sensor_ctl->cur_cam20_flash_udctrl;
-
-	if ((sensor_ctl->valid_flash_udctrl == false)
-		|| (vsync_count != sensor_ctl->flash_frame_number))
+	if (sensor_ctl->valid_flash_udctrl == false)
 		goto p_err;
+
+	flash_uctl = &sensor_ctl->cur_cam20_flash_udctrl;
 
 	if ((flash_uctl->flashMode != flash->flash_data.mode) ||
 		(flash_uctl->flashMode != CAM2_FLASH_MODE_OFF && flash_uctl->firingPower == 0)) {
@@ -1390,7 +1389,6 @@ int fimc_is_sensor_peri_pre_flash_fire(struct v4l2_subdev *subdev, void *arg)
 #endif
 	}
 
-p_err:
 	/* HACK: reset uctl */
 	flash_uctl->flashMode = 0;
 	flash_uctl->firingPower = 0;
@@ -1398,6 +1396,7 @@ p_err:
 	sensor_ctl->flash_frame_number = 0;
 	sensor_ctl->valid_flash_udctrl = false;
 
+p_err:
 	return ret;
 }
 

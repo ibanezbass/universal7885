@@ -9,8 +9,6 @@
  */
 
  #define pr_fmt(fmt)	"[LED] " fmt
- 
- #define LED_RMP_TIME		800
 
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -26,10 +24,6 @@
 #include <linux/mfd/samsung/s2mu004.h>
 #include <linux/mfd/samsung/s2mu004-private.h>
 #include <linux/leds-s2mu004-rgb.h>
-
-static unsigned int led_enable_fade = 1;
-static unsigned int led_fade_time_up = LED_RMP_TIME;
-static unsigned int led_fade_time_down = LED_RMP_TIME;
 
 struct s2mu004_rgb_drvdata {
 	struct s2mu004_rgb_pdata *pdata;
@@ -80,16 +74,13 @@ static int s2mu004_rgb_ramp(struct s2mu004_rgb_drvdata *ddata,
 	int ret = 0;
 	int value;
 	int col = ddata->pdata->col[led];
-    
-	if (! led_enable_fade)
-		led_fade_time_up = led_fade_time_down = LED_RMP_TIME;
 
-	if (ramp_up > led_fade_time_up)
-		ramp_up = ((ramp_up - led_fade_time_up) >> 1) + led_fade_time_up;
+	if (ramp_up > 800)
+		ramp_up = ((ramp_up - 800) >> 1) + 800;
 	ramp_up /= 100;
 
-	if (ramp_down > led_fade_time_down)
-		ramp_down = ((ramp_down - led_fade_time_down) >> 1) + led_fade_time_down;
+	if (ramp_down > 800)
+		ramp_down = ((ramp_down - 800) >> 1) + 800;
 	ramp_down /= 100;
 
 	value = (ramp_down) | (ramp_up << 4);
@@ -152,32 +143,17 @@ static ssize_t store_s2mu004_rgb_pattern(struct device *dev,
 			ddata->ratio[LED_RED], LED_ALWAYS_ON);
 		break;
 	case CHARGING_ERR:
-		if (led_enable_fade) {
-			s2mu004_rgb_ramp(ddata, LED_RED, led_fade_time_up, led_fade_time_down);
-			s2mu004_rgb_blink(ddata, LED_RED, led_fade_time_up, 500);
-		} else {
-			s2mu004_rgb_blink(ddata, LED_RED, 500, 500);
-		}
+		s2mu004_rgb_blink(ddata, LED_RED, 500, 500);
 		s2mu004_rgb_set_state(ddata, LED_RED,
 			ddata->ratio[LED_RED], LED_BLINK);
 		break;
 	case MISSED_NOTI:
-		if (led_enable_fade) {
-			s2mu004_rgb_ramp(ddata, LED_BLUE, led_fade_time_up, led_fade_time_down);
-			s2mu004_rgb_blink(ddata, LED_BLUE, led_fade_time_up, 5000);
-		} else {
-			s2mu004_rgb_blink(ddata, LED_BLUE, 500, 5000);
-		}
+		s2mu004_rgb_blink(ddata, LED_BLUE, 500, 5000);
 		s2mu004_rgb_set_state(ddata, LED_BLUE,
 			ddata->ratio[LED_BLUE], LED_BLINK);
 		break;
 	case LOW_BATTERY:
-		if (led_enable_fade) {
-			s2mu004_rgb_ramp(ddata, LED_RED, led_fade_time_up, led_fade_time_down);
-			s2mu004_rgb_blink(ddata, LED_RED, led_fade_time_up, 5000);
-		} else {
-			s2mu004_rgb_blink(ddata, LED_RED, 500, 5000);
-		}
+		s2mu004_rgb_blink(ddata, LED_RED, 500, 5000);
 		s2mu004_rgb_set_state(ddata, LED_RED,
 			ddata->ratio[LED_RED], LED_BLINK);
 		break;
@@ -186,13 +162,8 @@ static ssize_t store_s2mu004_rgb_pattern(struct device *dev,
 			ddata->ratio[LED_GREEN], LED_ALWAYS_ON);
 		break;
 	case POWERING:
-		if (led_enable_fade) {
-			s2mu004_rgb_ramp(ddata, LED_GREEN, led_fade_time_up, led_fade_time_down);
-			s2mu004_rgb_blink(ddata, LED_GREEN, led_fade_time_up, 5000);
-		} else {
-			s2mu004_rgb_ramp(ddata, LED_GREEN, LED_RMP_TIME, LED_RMP_TIME);
-			s2mu004_rgb_blink(ddata, LED_GREEN, 200, 200);
-		}
+		s2mu004_rgb_ramp(ddata, LED_GREEN, 800, 800);
+		s2mu004_rgb_blink(ddata, LED_GREEN, 200, 200);
 		s2mu004_rgb_set_state(ddata, LED_BLUE,
 			ddata->ratio[LED_BLUE], LED_ALWAYS_ON);
 		s2mu004_rgb_set_state(ddata, LED_GREEN,
@@ -232,9 +203,6 @@ static ssize_t store_s2mu004_rgb_blink(struct device *dev,
 
 	for (i = 0; i < ddata->pdata->nleds; i++) {
 		if (br[i]) {
-			if (on > 0)
-				s2mu004_rgb_ramp(ddata, i, led_fade_time_up, led_fade_time_down);
-        
 			if (!off)
 				s2mu004_rgb_set_state(ddata, i, br[i], LED_ALWAYS_ON);
 			else {
@@ -289,78 +257,6 @@ static ssize_t store_s2mu004_rgb_lowpower(struct device *dev,
 	return count;
 }
 
-static ssize_t led_fade_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-
-	ret = snprintf(buf, 30, "%d\n", led_enable_fade);
-
-	pr_info("leds-s2mu004-rgb: %s: led_fade=%d\n", __func__, led_enable_fade);
-	return ret;
-}
-static ssize_t led_fade_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int enabled = 0;
-
-	retval = sscanf(buf, "%1d", &enabled);
-
-	if (retval && (enabled == 0 || enabled == 1))
-		led_enable_fade = enabled;
-
-	return count;
-}
-static ssize_t led_fade_time_up_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-
-	ret = snprintf(buf, 30, "%d\n", led_fade_time_up);
-
-	pr_info("leds-s2mu004-rgb: %s: led_fade_time_up=%d\n", __func__, led_fade_time_up);
-	return ret;
-}
-static ssize_t led_fade_time_up_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int val = 0;
-
-	retval = sscanf(buf, "%d", &val);
-
-	if (retval && val >= 100  &&  val <= 4000)
-		led_fade_time_up = val;
-
-	return count;
-}
-static ssize_t led_fade_time_down_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	int ret;
-
-	ret = snprintf(buf, 30, "%d\n", led_fade_time_down);
-	pr_info("leds-s2mu004-rgb: %s: led_fade_time_down=%d\n", __func__, led_fade_time_down);
-	return ret;
-}
-static ssize_t led_fade_time_down_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	int retval;
-	int val = 0;
-
-	retval = sscanf(buf, "%d", &val);
-
-	if (retval && val >= 100  &&  val <= 4000)
-		led_fade_time_down = val;
-
-	return count;
-}
-
 #define ATTR_STORE_RGB(name, type)		\
 static ssize_t store_led_##name(struct device *dev,	\
 	struct device_attribute *devattr, const char *buf, size_t count)\
@@ -385,9 +281,6 @@ static DEVICE_ATTR(led_pattern, 0660, NULL, store_s2mu004_rgb_pattern);
 static DEVICE_ATTR(led_blink, 0660, NULL,  store_s2mu004_rgb_blink);
 static DEVICE_ATTR(led_brightness, 0660, NULL, store_s2mu004_rgb_brightness);
 static DEVICE_ATTR(led_lowpower, 0660, NULL,  store_s2mu004_rgb_lowpower);
-static DEVICE_ATTR(led_fade, 0660, led_fade_show, led_fade_store);
-static DEVICE_ATTR(led_fade_time_up, 0660, led_fade_time_up_show, led_fade_time_up_store);
-static DEVICE_ATTR(led_fade_time_down, 0660, led_fade_time_down_show, led_fade_time_down_store);
 
 static struct attribute *sec_led_attributes[] = {
 	&dev_attr_led_r.attr,
@@ -397,9 +290,6 @@ static struct attribute *sec_led_attributes[] = {
 	&dev_attr_led_blink.attr,
 	&dev_attr_led_brightness.attr,
 	&dev_attr_led_lowpower.attr,
-	&dev_attr_led_fade.attr,
-	&dev_attr_led_fade_time_up.attr,
-	&dev_attr_led_fade_time_down.attr,
 	NULL,
 };
 
@@ -533,8 +423,8 @@ static void s2mu004_rgb_shutdown(struct platform_device *pdev)
 }
 static struct platform_driver s2mu004_fled_driver = {
 	.driver		= {
-    .name	= "s2mu004-leds",
-    .owner	= THIS_MODULE,
+		.name	= "s2mu004-leds",
+		.owner	= THIS_MODULE,
 	},
 	.probe		= s2mu004_rgb_probe,
 	.remove		= s2mu004_rgb_remove,

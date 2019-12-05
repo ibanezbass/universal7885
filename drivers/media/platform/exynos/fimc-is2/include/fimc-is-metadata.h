@@ -1187,7 +1187,8 @@ struct camera2_aa_dm {
 	uint32_t			vendor_colorTempIndex;
 	uint32_t			vendor_luxIndex;
 	uint32_t			vendor_luxStandard;
-	uint32_t			vendor_reserved[5];
+	int32_t				vendor_multiFrameEv;
+	uint32_t			vendor_reserved[4];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1722,6 +1723,7 @@ enum camera_op_mode {
 	CAMERA_OP_MODE_HAL3_TW,
 	CAMERA_OP_MODE_FAC,
 	CAMERA_OP_MODE_HAL3_FAC,
+	CAMERA_OP_MODE_HAL3_SDK,
 };
 
 struct camera2_is_mode_uctl {
@@ -2000,7 +2002,8 @@ struct camera2_uctl {
 	uint8_t				countryCode[4];
 	enum camera_motion_state	motionState;
 	enum camera_client_index	cameraClientIndex;
-	uint32_t			reserved[7];
+	int32_t 			remosaicResolutionMode;
+	uint32_t			reserved[6];
 };
 
 struct camera2_udm {

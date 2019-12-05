@@ -600,7 +600,7 @@ static struct mbulk *hip4_skb_to_mbulk(struct hip4_priv *hip, struct sk_buff *sk
 }
 
 /* Transform mbulk to skb (fapi_signal + payload) */
-static struct sk_buff *hip4_mbulk_to_skb(struct scsc_service *service, struct mbulk *m, scsc_mifram_ref *to_free, bool cfm)
+static struct sk_buff *hip4_mbulk_to_skb(struct scsc_service *service, struct hip4_priv *hip_priv, struct mbulk *m, scsc_mifram_ref *to_free, bool atomic)
 {
 	struct slsi_skb_cb        *cb;
 	struct mbulk              *next_mbulk[MBULK_MAX_CHAIN];
@@ -658,7 +658,13 @@ static struct sk_buff *hip4_mbulk_to_skb(struct scsc_service *service, struct mb
 	}
 
 cont:
-	skb = alloc_skb(bytes_to_alloc, GFP_ATOMIC);
+	if (atomic)
+		skb = slsi_alloc_skb(bytes_to_alloc, GFP_ATOMIC);
+	else {
+		spin_unlock_bh(&hip_priv->rx_lock);
+		skb = slsi_alloc_skb(bytes_to_alloc, GFP_KERNEL);
+		spin_lock_bh(&hip_priv->rx_lock);
+	}
 	if (!skb) {
 		SLSI_ERR_NODEV("Error allocating skb\n");
 		return NULL;
@@ -744,7 +750,6 @@ static void hip4_watchdog(unsigned long data)
 		return;
 
 	spin_lock_irqsave(&hip->hip_priv->watchdog_lock, flags);
-
 	if (!atomic_read(&hip->hip_priv->watchdog_timer_active))
 		goto exit;
 
@@ -756,10 +761,12 @@ static void hip4_watchdog(unsigned long data)
 		goto exit;
 	}
 
-	/* Check that wdt is actually > 1 HZ intr */
+	/* Check that wdt is > 1 HZ intr */
 	intr_ov = ktime_add_ms(intr_received, jiffies_to_msecs(HZ));
-	if (ktime_compare(intr_ov, wdt) > 0) {
+	if (!(ktime_compare(intr_ov, wdt) < 0)) {
 		wdt = ktime_set(0, 0);
+		/* Retrigger WDT to check flags again in the future */
+		mod_timer(&hip->hip_priv->watchdog, jiffies + HZ / 2);
 		goto exit;
 	}
 
@@ -859,15 +866,18 @@ static void hip4_wq(struct work_struct *data)
 		return;
 	}
 
+	service = sdev->service;
+
+	atomic_set(&hip->hip_priv->in_rx, 1);
 	if (slsi_check_rx_flowcontrol(sdev))
 		rx_flowcontrol = true;
 
-	service = sdev->service;
+	atomic_set(&hip->hip_priv->in_rx, 2);
 
 #ifndef TASKLET
 	spin_lock_bh(&hip_priv->rx_lock);
 #endif
-	atomic_set(&hip->hip_priv->in_rx, 1);
+	atomic_set(&hip->hip_priv->in_rx, 3);
 	SCSC_HIP4_SAMPLER_INT(hip_priv->minor);
 
 	bh_init = ktime_get();
@@ -935,6 +945,8 @@ consume_fb_mbulk:
 	if (update)
 		hip4_update_index(hip, HIP4_MIF_Q_FH_RFB, ridx, idx_r);
 
+	atomic_set(&hip->hip_priv->in_rx, 4);
+
 	idx_r = hip4_read_index(hip, HIP4_MIF_Q_TH_CTRL, ridx);
 	idx_w = hip4_read_index(hip, HIP4_MIF_Q_TH_CTRL, widx);
 	update = false;
@@ -968,7 +980,7 @@ consume_fb_mbulk:
 		}
 		/* Process Control Signal */
 
-		skb = hip4_mbulk_to_skb(service, m, to_free, false);
+		skb = hip4_mbulk_to_skb(service, hip_priv, m, to_free, true);
 		if (!skb) {
 			SLSI_ERR_NODEV("Ctrl: Error parsing skb\n");
 			hip4_dump_dbg(hip, m, skb, service);
@@ -1030,11 +1042,13 @@ consume_ctl_mbulk:
 	}
 
 	/* Update the scoreboard */
-		if (update)
+	if (update)
 		hip4_update_index(hip, HIP4_MIF_Q_TH_CTRL, ridx, idx_r);
 
 	if (rx_flowcontrol)
 		goto skip_data_q;
+
+	atomic_set(&hip->hip_priv->in_rx, 5);
 
 	idx_r = hip4_read_index(hip, HIP4_MIF_Q_TH_DAT, ridx);
 	idx_w = hip4_read_index(hip, HIP4_MIF_Q_TH_DAT, widx);
@@ -1068,7 +1082,7 @@ consume_ctl_mbulk:
 			goto consume_dat_mbulk;
 		}
 
-		skb = hip4_mbulk_to_skb(service, m, to_free, false);
+		skb = hip4_mbulk_to_skb(service, hip_priv, m, to_free, true);
 		if (!skb) {
 			SLSI_ERR_NODEV("Dat: Error parsing skb\n");
 			hip4_dump_dbg(hip, m, skb, service);
@@ -1173,8 +1187,21 @@ static void hip4_irq_handler(int irq, void *data)
 		SCSC_WLOG_WAKELOCK(WLOG_LAZY, WL_TAKEN, "hip4_wake_lock", WL_REASON_RX);
 	}
 
-	atomic_set(&hip->hip_priv->watchdog_timer_active, 1);
-	mod_timer(&hip->hip_priv->watchdog, jiffies + HZ);
+	/* if wd timer is active system might be in trouble as it should be
+	 * cleared in the BH. Ignore updating the timer
+	 */
+	if (!atomic_read(&hip->hip_priv->watchdog_timer_active)) {
+		atomic_set(&hip->hip_priv->watchdog_timer_active, 1);
+		mod_timer(&hip->hip_priv->watchdog, jiffies + HZ);
+	} else {
+		SLSI_ERR_NODEV("INT triggered while WDT is active\n");
+		SLSI_ERR_NODEV("bh_init %lld\n", ktime_to_ns(bh_init));
+		SLSI_ERR_NODEV("bh_end  %lld\n", ktime_to_ns(bh_end));
+#ifndef TASKLET
+		SLSI_ERR_NODEV("hip4_wq work_busy %d\n", work_busy(&hip->hip_priv->intr_wq));
+#endif
+		SLSI_ERR_NODEV("hip4_priv->in_rx %d\n", atomic_read(&hip->hip_priv->in_rx));
+	}
 	/* If system is not in suspend, mask interrupt to avoid interrupt storm and let BH run */
 	if (!atomic_read(&hip->hip_priv->in_suspend)) {
 		scsc_service_mifintrbit_bit_mask(sdev->service, hip->hip_priv->rx_intr_tohost);

@@ -278,7 +278,11 @@ static int hx8279d_init(struct lcd_info *lcd)
 	hx8279d_read_id(lcd);
 #endif
 
-	ret = dsi_write_table(lcd, SEQ_CMD_TABLE, ARRAY_SIZE(SEQ_CMD_TABLE));
+	if (lcd->id_info.id[2] == 0x10)
+		ret = dsi_write_table(lcd, SEQ_CMD_TABLE_VE, ARRAY_SIZE(SEQ_CMD_TABLE_VE));
+	else
+		ret = dsi_write_table(lcd, SEQ_CMD_TABLE, ARRAY_SIZE(SEQ_CMD_TABLE));
+
 	if (ret < 0) {
 		dev_err(&lcd->ld->dev, "%s: failed to write CMD : SEQ_CMD_TABLE\n", __func__);
 		goto init_err;
@@ -307,6 +311,9 @@ static int hx8279d_probe(struct lcd_info *lcd)
 	ret = hx8279d_read_init_info(lcd);
 	if (ret < 0)
 		dev_err(&lcd->ld->dev, "%s: failed to init information\n", __func__);
+
+	if (lcd->id_info.id[2] == 0x10)
+		memcpy(brightness_table, brightness_table_VE, sizeof(brightness_table));
 
 	dev_info(&lcd->ld->dev, "- %s\n", __func__);
 

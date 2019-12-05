@@ -352,7 +352,8 @@ void slsi_rx_scan_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_b
 		SLSI_NET_DBG1(dev, SLSI_MLME, "Connect/Roaming scan indication received, bssid:%pM\n", fapi_get_mgmt(skb)->bssid);
 		slsi_kfree_skb(ndev_vif->sta.mlme_scan_ind_skb);
 		ndev_vif->sta.mlme_scan_ind_skb = skb;
-	} else {
+	} else if (ndev_vif->scan[scan_id].scan_req || ndev_vif->scan[scan_id].acs_request ||
+		   ndev_vif->scan[SLSI_SCAN_HW_ID].is_blocking_scan) {
 		slsi_roam_channel_cache_add(sdev, dev, skb);
 		if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif))
 			slsi_add_to_scan_list(sdev, ndev_vif, skb, scan_ssid, scan_id);
@@ -844,6 +845,11 @@ struct slsi_acs_chan_info *slsi_acs_scan_results(struct slsi_dev *sdev, struct n
 
 		idx = slsi_find_chan_idx(scan_channel->hw_value, ndev_vif->scan[SLSI_SCAN_HW_ID].acs_request->hw_mode);
 		SLSI_DBG3(sdev, SLSI_MLME, "chan_idx:%d chan_value: %d\n", idx, ch_info[idx].chan);
+
+		if ((idx < 0) || (idx > 24)) {
+			SLSI_DBG3(sdev, SLSI_MLME, "idx is not in range idx=%d\n", idx);
+			goto next_scan;
+		}
 		if (ch_info[idx].chan) {
 			ch_info[idx].num_ap += 1;
 			ie = cfg80211_find_ie(WLAN_EID_QBSS_LOAD, mgmt->u.beacon.variable, ies_len);
@@ -2262,6 +2268,7 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	u16 data_unit_descriptor = fapi_get_u16(skb, u.mlme_received_frame_ind.data_unit_descriptor);
 	u16 frequency = SLSI_FREQ_FW_TO_HOST(fapi_get_u16(skb, u.mlme_received_frame_ind.channel_frequency));
+	u8 *eapol = NULL;
 	u8 *eap = NULL;
 	u16 protocol = 0;
 	u32 dhcp_message_type = SLSI_DHCP_MESSAGE_TYPE_INVALID;
@@ -2356,6 +2363,9 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 		dev->last_rx = jiffies;
 
 		/* Storing Data for Logging Information */
+		if ((skb->len - sizeof(struct ethhdr)) >= 99)
+			eapol = skb->data + sizeof(struct ethhdr);
+
 		if ((skb->len - sizeof(struct ethhdr)) >= 9) {
 			eap_length = (skb->len - sizeof(struct ethhdr)) - 4;
 			eap = skb->data + sizeof(struct ethhdr);
@@ -2366,7 +2376,26 @@ void slsi_rx_received_frame_ind(struct slsi_dev *sdev, struct net_device *dev, s
 		skb->protocol = eth_type_trans(skb, dev);
 		protocol = ntohs(skb->protocol);
 		if (protocol == ETH_P_PAE) {
-			if (eap && eap[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAP_PACKET) {
+			if (eapol && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAPOL_KEY) {
+				if ((eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_RSN_KEY ||
+				     eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_WPA_KEY) &&
+				    (eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] &
+				     SLSI_EAPOL_KEY_INFO_KEY_TYPE_BIT_IN_LOWER_BYTE) &&
+				    (eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] &
+				     SLSI_EAPOL_KEY_INFO_MIC_BIT_IN_HIGHER_BYTE) &&
+				    (eapol[SLSI_EAPOL_KEY_DATA_LENGTH_HIGHER_BYTE_POS] == 0) &&
+				    (eapol[SLSI_EAPOL_KEY_DATA_LENGTH_LOWER_BYTE_POS] == 0)) {
+					SLSI_INFO(sdev, "Received 4way-H/S, M4\n");
+				} else if (!(eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] &
+					     SLSI_EAPOL_KEY_INFO_MIC_BIT_IN_HIGHER_BYTE)) {
+					SLSI_INFO(sdev, "Received 4way-H/S, M1\n");
+				} else if (eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] &
+					   SLSI_EAPOL_KEY_INFO_SECURE_BIT_IN_HIGHER_BYTE) {
+					SLSI_INFO(sdev, "Received 4way-H/S, M3\n");
+				} else {
+					SLSI_INFO(sdev, "Received 4way-H/S, M2\n");
+				}
+			} else if (eap && eap[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAP_PACKET) {
 				if (eap[SLSI_EAP_CODE_POS] == SLSI_EAP_PACKET_REQUEST)
 					SLSI_INFO(sdev, "Received EAP-Request (%d)\n", eap_length);
 				else if (eap[SLSI_EAP_CODE_POS] == SLSI_EAP_PACKET_RESPONSE)
